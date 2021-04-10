@@ -24,13 +24,76 @@ scrollBar.config(command=tkDisplay.yview)
 tkDisplay.config(yscrollcommand=scrollBar.set, background="#F4F6F7", highlightbackground="grey", state="disabled")
 clientFrame.pack(side=tk.BOTTOM, pady=(5, 10))
 
+# define server network settings
+SERVER_IP = "127.0.0.1"
+SERVER_PORT = 5002
+clients = {}
+MAX_CLIENTS = 5
+MAX_MSG_SIZE = 4096
+server = None
+
 
 def start_server():
-    pass
+    global server
+    btnStart.config(state=tk.DISABLED)
+    btnStop.config(state=tk.NORMAL)
+
+    # define socket server
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.bind((SERVER_IP, SERVER_PORT))
+    server.listen(MAX_CLIENTS)
+    threading.Thread(target=accept_clients, args=(server,)).start()
 
 
 def stop_server():
-    pass
+    btnStart.config(state=tk.NORMAL)
+    btnStop.config(state=tk.DISABLED)
+
+
+def accept_clients(from_server):
+    while True:
+        client, client_addr = from_server.accept()
+        threading.Thread(target=send_receive_client_message, args=(client,)).start()
+
+
+def send_client_status_message(client_name, status):
+    tkDisplay.config(state=tk.NORMAL)
+    tkDisplay.insert(tk.END, f"{client_name} {status}.....\n")
+    tkDisplay.config(state=tk.DISABLED)
+
+
+def send_receive_client_message(client_conn):
+    global server, clients
+
+    # send welcome message to client
+    client_name = client_conn.recv(4096).decode('utf-8')
+    print(f"client name: {client_name}")
+    # client_conn.send(f"Welcome {client_name}. Use 'exit' to quit")
+    clients[client_name] = client_conn
+
+    # send connect message
+    send_client_status_message(client_name, "connected")  # update client names display
+
+    while True:
+        data = client_conn.recv(4096).decode('utf-8')
+        if not data or data == "exit":
+            break
+
+        client_msg = data
+
+        for k in clients.keys():
+            if clients[k] != client_conn:
+                clients[k].send(f"{k} -> {client_msg}")
+
+    # on client disconnect
+    clients[client_name].send("BYE!")
+    clients[client_name].close()
+    try:
+        clients.pop(client_name)
+    except KeyError:
+        pass
+    # send disconnect message
+    send_client_status_message(client_name, "disconnected")  # update client names display
 
 
 server_window.mainloop()
