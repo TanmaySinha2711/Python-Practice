@@ -66,27 +66,23 @@ def send_receive_client_message(client_conn):
     global server, clients
 
     # send welcome message to client
-    client_name = client_conn.recv(4096).decode('utf-8')
-    print(f"client name: {client_name}")
-    # client_conn.send(f"Welcome {client_name}. Use 'exit' to quit")
+    client_name = client_conn.recv(MAX_MSG_SIZE).decode('utf-8')
     clients[client_name] = client_conn
 
     # send connect message
     send_client_status_message(client_name, "connected")  # update client names display
 
     while True:
-        data = client_conn.recv(4096).decode('utf-8')
-        if not data or data == "exit":
+        client_msg = client_conn.recv(MAX_MSG_SIZE).decode('utf-8')
+        if not client_msg or client_msg == "exit":
             break
 
-        client_msg = data
-
-        for k in clients.keys():
-            if clients[k] != client_conn:
-                clients[k].send(f"{k} -> {client_msg}")
+        for k in clients:
+            if k != client_name:
+                clients[k].send(f"{k} -> {client_msg}".encode())
 
     # on client disconnect
-    clients[client_name].send("BYE!")
+    clients[client_name].send("BYE!".encode())
     clients[client_name].close()
     try:
         clients.pop(client_name)
